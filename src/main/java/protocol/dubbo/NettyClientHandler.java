@@ -1,7 +1,9 @@
 package protocol.dubbo;
 
+import framework.Invocation;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.util.concurrent.Callable;
 
@@ -20,7 +22,7 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter implements 
     /**
      * 声明传输参数
      */
-    private String param;
+    private Object param;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -39,11 +41,11 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter implements 
         ctx.close();
     }
 
-    public String getParam() {
+    public Object getParam() {
         return param;
     }
 
-    public void setParam(String param) {
+    public void setParam(Object param) {
         this.param = param;
     }
 
@@ -53,8 +55,7 @@ public class NettyClientHandler extends ChannelInboundHandlerAdapter implements 
      */
     @Override
     public synchronized Object call() throws Exception {
-
-        context.writeAndFlush(param);
+        context.writeAndFlush((Invocation)param);
         // 进行 wait,等待channelRead获取到服务器的结果
         wait();
         // 返回结果

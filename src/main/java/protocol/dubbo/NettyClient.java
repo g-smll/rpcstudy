@@ -1,93 +1,71 @@
 package protocol.dubbo;
 
-import framework.Url;
+import framework.Invocation;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.*;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.string.StringDecoder;
-import io.netty.handler.codec.string.StringEncoder;
+import io.netty.handler.codec.serialization.ClassResolvers;
+import io.netty.handler.codec.serialization.ObjectDecoder;
+import io.netty.handler.codec.serialization.ObjectEncoder;
 
-import java.lang.reflect.Proxy;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class NettyClient {
+public class NettyClient<T> {
 
     // 创建线程池
     private static ExecutorService executorService = Executors
             .newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
+    public  NettyClientHandler nettyClientHandler = null;
 
-
-    private static NettyClientHandler nettyClientHandler;
-
-
-
-    /**
-     * 初始化客户端
-     */
-    public static void initClient() {
-        Url url = new Url("localhost",8081);
+    public void start(String hostName, Integer port){
         nettyClientHandler = new NettyClientHandler();
-
-        EventLoopGroup group = new NioEventLoopGroup();
-
         Bootstrap bootstrap = new Bootstrap();
-        bootstrap.group(group)
+        EventLoopGroup eventLoopGroup = new NioEventLoopGroup();
+        bootstrap.group(eventLoopGroup)
                 .channel(NioSocketChannel.class)
                 .option(ChannelOption.TCP_NODELAY,true)
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel socketChannel) throws Exception {
                         ChannelPipeline pipeline = socketChannel.pipeline();
-                        pipeline.addLast(new StringDecoder());
-                        pipeline.addLast(new StringEncoder());
+//                        pipeline.addLast(new ObjectDecoder());
+                        pipeline.addLast(
+                                new ObjectDecoder(1024, ClassResolvers.cacheDisabled(
+                                        this.getClass().getClassLoader())));
+                        pipeline.addLast(new ObjectEncoder());
                         pipeline.addLast(nettyClientHandler);
                     }
-                });
+                }
+         );
+
         try {
-            ChannelFuture sync = bootstrap.connect(url.getHostName(),url.getPort()).sync();
+            bootstrap.connect(hostName,port).sync();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-
     }
 
-    /**
-     * 编写方法，使用代理模式，获取一个代理对象
-     */
-    public Object getBean(final Class<?> serviceClass) {
-        return Proxy.newProxyInstance(Thread.currentThread().getContextClassLoader(),
-                new Class<?>[] {serviceClass},(proxy,method,args) ->{
-                    if(nettyClientHandler == null){
-                        initClient();
-                    }
-                    // 设置参数，要发给服务区端的信息 providerName就是协议头
-                    nettyClientHandler.setParam(""+args[0]);
-                    return executorService.submit(nettyClientHandler).get();
-                });
+    public String send(String hostName, Integer port, Invocation invocation)  {
+
+        start(hostName,port);
+        nettyClientHandler.setParam(invocation);
+        try {
+            return (String) executorService.submit(nettyClientHandler).get();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
-
-
-
-
-    public static ExecutorService getExecutorService() {
-        return executorService;
-    }
-
-    public static void setExecutorService(ExecutorService executorService) {
-        NettyClient.executorService = executorService;
-    }
-
-    public static NettyClientHandler getNettyClientHandler() {
-        return nettyClientHandler;
-    }
-
-    public static void setNettyClientHandler(NettyClientHandler nettyClientHandler) {
-        NettyClient.nettyClientHandler = nettyClientHandler;
-    }
 }

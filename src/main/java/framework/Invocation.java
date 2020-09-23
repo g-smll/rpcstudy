@@ -1,6 +1,7 @@
 package framework;
 
 import java.io.Serializable;
+import java.util.Arrays;
 
 public class Invocation implements Serializable {
     /**
@@ -57,5 +58,15 @@ public class Invocation implements Serializable {
 
     public void setParams(Object[] params) {
         this.params = params;
+    }
+
+    @Override
+    public String toString() {
+        return "{" +
+                "interfaceName='" + interfaceName + '\'' +
+                ", methodName='" + methodName + '\'' +
+                ", paramTypes=" + Arrays.toString(paramTypes) +
+                ", params=" + Arrays.toString(params) +
+                '}';
     }
 }

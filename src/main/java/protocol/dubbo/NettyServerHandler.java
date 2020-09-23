@@ -1,21 +1,39 @@
 package protocol.dubbo;
 
+import com.alibaba.fastjson.JSONObject;
+import framework.Invocation;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import provider.LocalRegister;
 import provider.impl.HelloServiceImpl;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 
 public class NettyServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        // 获取客户端(消费者)的消息，并调用服务
-        System.out.println("msg:"+msg);
-        // 客户端在调用服务端api时，需要定义一个协议
-        // 比如我们要求 每次发消息都必须以某个字符串开头 "helloService#hello#"
-//        if(msg.toString().startsWith("helloService#hello#")) {
-        String s = new HelloServiceImpl().sayHello(msg.toString());
-            ctx.writeAndFlush(s);
-//        }
+    public void channelRead(ChannelHandlerContext ctx, Object msg)  {
+
+        Invocation invocation = (Invocation)msg;
+
+        Class serviceImp = LocalRegister.get(invocation.getInterfaceName());
+
+        Method method = null;
+        try {
+            method = serviceImp.getMethod(invocation.getMethodName(),invocation.getParamTypes());
+            Object result = method.invoke(serviceImp.newInstance(),invocation.getParams());
+            ctx.writeAndFlush("Netty:"+result);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
+
     }
 
     @Override
